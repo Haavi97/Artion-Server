@@ -27,6 +27,7 @@ const loadContract = async (isPrivate, is721) => {
       : is721
       ? CollectionFactoryContract.MAINNET_721_PUBLIC
       : CollectionFactoryContract.MAINNET_1155_PUBLIC;
+
   return new ethers.Contract(address, CollectionFactoryContract.ABI, provider);
 };
 
