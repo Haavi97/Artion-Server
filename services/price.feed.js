@@ -1,5 +1,6 @@
 require("dotenv").config();
 const ethers = require("ethers");
+const hadesData = require("hadeswap-beta-data");
 
 const mongoose = require("mongoose");
 const PayToken = mongoose.model("PayToken");
@@ -38,20 +39,13 @@ const runPriceFeed = async () => {
     let paymentTokens = await PayToken.find({});
     paymentTokens.map(async (token) => {
       try {
-        let proxy = chainLinkContracts.get(token.address);
-        if (proxy) {
-        } else {
-          proxy = new ethers.Contract(
-            token.chainlinkProxyAddress,
-            ChainLinkFeedABI,
-            signer
-          );
-          chainLinkContracts.set(token, proxy);
-        }
-        let priceFeed = await proxy.latestRoundData();
+        // Logger.debug("priceFeed: ");
+        // let priceFeed;
+        // hadesData.exchange.ethPrice().then(priceFeed => Logger.info(priceFeed));
+        let priceFeed = await hadesData.exchange.ethPrice();
+        // Logger.debug(priceFeed);
         priceFeed =
-          ethers.utils.formatEther(priceFeed.answer) *
-          10 ** (18 - token.decimals);
+          ethers.utils.formatEther(priceFeed) * 10 ** (18 - token.decimals);
         priceStore.set(token.address, priceFeed);
       } catch (error) {}
     });
@@ -117,11 +111,7 @@ const getSymbol = async (address) => {
       if (address == "wpolis") address = toLowerCase(process.env.WFTM_ADDRESS);
       let symbol = symbolStore.get(address);
       if (symbol) return symbol;
-      let tokenContract = new ethers.Contract(
-        address,
-        MinimalERC20ABI,
-        signer
-      );
+      let tokenContract = new ethers.Contract(address, MinimalERC20ABI, signer);
       symbol = await tokenContract.symbol();
       symbolStore.set(address, symbol);
       return symbol;
@@ -137,7 +127,7 @@ const getSymbol = async (address) => {
         return "POLIS";
       symbol = "ASDF";
       Logger.debug(symbol);
-      return symbol
+      return symbol;
     }
   }
 };
