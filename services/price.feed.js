@@ -4,6 +4,8 @@ const ethers = require("ethers");
 const mongoose = require("mongoose");
 const PayToken = mongoose.model("PayToken");
 
+const Logger = require("../services/logger");
+
 // price store
 const priceStore = new Map();
 // decimal store
@@ -27,6 +29,8 @@ const provider = new ethers.providers.JsonRpcProvider(
   parseInt(process.env.NETWORK_CHAINID)
 );
 
+const signer = new ethers.Wallet(process.env.SIGNER, provider);
+
 // a background service to get price feeds for erc20 tokens
 
 const runPriceFeed = async () => {
@@ -40,7 +44,7 @@ const runPriceFeed = async () => {
           proxy = new ethers.Contract(
             token.chainlinkProxyAddress,
             ChainLinkFeedABI,
-            provider
+            signer
           );
           chainLinkContracts.set(token, proxy);
         }
@@ -86,7 +90,7 @@ const getDecimals = async (address) => {
     address = toLowerCase(process.env.WFTM_ADDRESS);
   let decimal = decimalStore.get(address);
   if (decimal) return decimal;
-  let tokenContract = new ethers.Contract(address, MinimalERC20ABI, provider);
+  let tokenContract = new ethers.Contract(address, MinimalERC20ABI, signer);
   decimal = await tokenContract.decimals();
   decimal = parseInt(decimal.toString());
   decimalStore.set(address, decimal);
@@ -94,16 +98,48 @@ const getDecimals = async (address) => {
 };
 
 const getSymbol = async (address) => {
+  Logger.debug("getSymbol server function: ");
+  Logger.debug("address: ");
+  Logger.debug(address);
   address = toLowerCase(address);
   if (address == "ftm" || address == "fantom" || address == validatorAddress)
     return "FTM";
   if (address == "wftm") address = toLowerCase(process.env.WFTM_ADDRESS);
-  let symbol = symbolStore.get(address);
-  if (symbol) return symbol;
-  let tokenContract = new ethers.Contract(address, MinimalERC20ABI, provider);
-  symbol = await tokenContract.symbol();
-  symbolStore.set(address, symbol);
-  return symbol;
+  try {
+    let symbol = symbolStore.get(address);
+    if (symbol) return symbol;
+    let tokenContract = new ethers.Contract(address, MinimalERC20ABI, signer);
+    symbol = await tokenContract.symbol();
+    symbolStore.set(address, symbol);
+    return symbol;
+  } catch (err) {
+    try {
+      if (address == "wpolis") address = toLowerCase(process.env.WFTM_ADDRESS);
+      let symbol = symbolStore.get(address);
+      if (symbol) return symbol;
+      let tokenContract = new ethers.Contract(
+        address,
+        MinimalERC20ABI,
+        signer
+      );
+      symbol = await tokenContract.symbol();
+      symbolStore.set(address, symbol);
+      return symbol;
+    } catch (err) {
+      Logger.error(err);
+      Logger.debug("hardcoded solution: ");
+      if (
+        address == "polis" ||
+        address == "olympus" ||
+        address == "POLIS" ||
+        address == validatorAddress
+      )
+        return "POLIS";
+      symbol = "ASDF";
+      Logger.debug(symbol);
+      return symbol
+    }
+  }
 };
 
 const getName = async (address) => {
@@ -113,7 +149,7 @@ const getName = async (address) => {
   if (address == "wftm") address = toLowerCase(process.env.WFTM_ADDRESS);
   let name = nameStore.get(address);
   if (name) return name;
-  let tokenContract = new ethers.Contract(address, MinimalERC20ABI, provider);
+  let tokenContract = new ethers.Contract(address, MinimalERC20ABI, signer);
   name = await tokenContract.name();
   nameStore.set(address, name);
   return name;

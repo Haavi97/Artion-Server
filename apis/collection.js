@@ -1,32 +1,32 @@
-require('dotenv').config();
-const { default: axios } = require('axios');
-const router = require('express').Router();
+require("dotenv").config();
+const { default: axios } = require("axios");
+const router = require("express").Router();
 
-const ethers = require('ethers');
+const ethers = require("ethers");
 
-const mongoose = require('mongoose');
-const Collection = mongoose.model('Collection');
-const Category = mongoose.model('Category');
-const ERC1155CONTRACT = mongoose.model('ERC1155CONTRACT');
-const ERC721CONTRACT = mongoose.model('ERC721CONTRACT');
+const mongoose = require("mongoose");
+const Collection = mongoose.model("Collection");
+const Category = mongoose.model("Category");
+const ERC1155CONTRACT = mongoose.model("ERC1155CONTRACT");
+const ERC721CONTRACT = mongoose.model("ERC721CONTRACT");
 
-const auth = require('./middleware/auth');
-const admin_auth = require('./middleware/auth.admin');
-const toLowerCase = require('../utils/utils');
-const isValidERC1155 = require('../utils/1155_validator');
-const isvalidERC721 = require('../utils/721_validator');
-const extractAddress = require('../services/address.utils');
-const applicationMailer = require('../mailer/reviewMailer');
-const FactoryUtils = require('../services/factory.utils');
-const validateSignature = require('../apis/middleware/auth.sign');
+const auth = require("./middleware/auth");
+const admin_auth = require("./middleware/auth.admin");
+const toLowerCase = require("../utils/utils");
+const isValidERC1155 = require("../utils/1155_validator");
+const isvalidERC721 = require("../utils/721_validator");
+const extractAddress = require("../services/address.utils");
+const applicationMailer = require("../mailer/reviewMailer");
+const FactoryUtils = require("../services/factory.utils");
+const validateSignature = require("../apis/middleware/auth.sign");
 
-const MarketplaceContractABI = require('../constants/marketplaceabi');
+const MarketplaceContractABI = require("../constants/marketplaceabi");
 const MarketplaceContractAddress = process.env.MARKETPLACE_ADDRESS;
 
 const ftmScanApiKey = process.env.FTM_SCAN_API_KEY;
 
-const Logger = require('../services/logger');
-const { getSymbol } = require('../services/price.feed');
+const Logger = require("../services/logger");
+const { getSymbol } = require("../services/price.feed");
 // to sign txs
 const provider = new ethers.providers.JsonRpcProvider(
   process.env.NETWORK_RPC,
@@ -40,20 +40,22 @@ const marketplaceSC = new ethers.Contract(
   ownerWallet
 );
 
-router.post('/collectiondetails', auth, async (req, res) => {
+router.post("/collectiondetails", auth, async (req, res) => {
   let erc721Address = req.body.erc721Address;
   erc721Address = toLowerCase(erc721Address);
 
   let owner = extractAddress(req, res);
   let signature = req.body.signature;
   let retrievedAddr = req.body.signatureAddress;
+  Logger.debug("Checking contract validity... ");
 
   if (!ethers.utils.isAddress(erc721Address))
     return res.json({
-      status: 'failed',
-      data: 'NFT Contract Address invalid'
+      status: "failed",
+      data: "NFT Contract Address invalid",
     });
 
+  Logger.debug("Validating signature... ");
   let isValidsignature = await validateSignature(
     owner,
     signature,
@@ -61,34 +63,35 @@ router.post('/collectiondetails', auth, async (req, res) => {
   );
   if (!isValidsignature)
     return res.status(400).json({
-      status: 'failed',
-      data: 'Invalid signature from user'
+      status: "failed",
+      data: "Invalid signature from user",
     });
 
   // validate to see whether the contract is either 721 or 1155, otherwise, reject
 
+  Logger.debug("Checking contract type ERC721/1155... ");
   try {
     let is721 = await isvalidERC721(erc721Address);
     if (!is721) {
       let is1155 = await isValidERC1155(erc721Address);
       if (!is1155)
         return res.status(400).json({
-          status: 'failed',
-          data: 'Invalid NFT Collection Address'
+          status: "failed",
+          data: "Invalid NFT Collection Address",
         });
     }
   } catch (error) {
     Logger.error(error);
     return res.status(400).json({
-      status: 'failed',
-      data: ''
+      status: "failed",
+      data: "",
     });
   }
 
   let collectionName = req.body.collectionName;
   let description = req.body.description;
   let categories = req.body.categories;
-  categories = categories.split(',');
+  categories = categories.split(",");
   let logoImageHash = req.body.logoImageHash;
   let siteUrl = req.body.siteUrl;
   let discord = req.body.discord;
@@ -100,23 +103,28 @@ router.post('/collectiondetails', auth, async (req, res) => {
 
   let feeRecipient = req.body.feeRecipient
     ? toLowerCase(req.body.feeRecipient)
-    : '';
+    : "";
   let royalty = req.body.royalty ? parseFloat(req.body.royalty) : 0;
 
   let collection = await Collection.findOne({ erc721Address: erc721Address });
   // verify if 1155 smart contracts
+  Logger.debug("Verify ERC1155... ");
   let is1155 = await isValidERC1155(erc721Address);
-
+  Logger.debug("is1155: ", is1155);
+  Logger.debug(is1155);
+  Logger.debug("isInternalCollection... ");
   let isInternal = await FactoryUtils.isInternalCollection(
     erc721Address,
     !is1155
   );
+  Logger.debug(isInternal);
+  Logger.debug(collection);
   // this is for editing a collection
   if (collection) {
     // disable modifying an existing collection
     return res.json({
-      status: 'failed',
-      data: 'NFT Contract Address already exists'
+      status: "failed",
+      data: "NFT Contract Address already exists",
     });
 
     //collection.erc721Address = erc721Address;
@@ -151,9 +159,10 @@ router.post('/collectiondetails', auth, async (req, res) => {
       let sc_1155 = new ERC1155CONTRACT();
       sc_1155.address = erc721Address;
       sc_1155.name = collectionName;
+      Logger.debug("Getting the symbol..");
       let symbol = await getSymbol(erc721Address);
-      Logger.debug('symbol is', symbol);
-      sc_1155.symbol = symbol || 'Symbol';
+      Logger.debug("symbol is", symbol);
+      sc_1155.symbol = symbol || "Symbol";
       sc_1155.isVerified = true;
       sc_1155.isAppropriate = true;
       await sc_1155.save();
@@ -165,21 +174,21 @@ router.post('/collectiondetails', auth, async (req, res) => {
     } else {
       // need to add a new erc721 contract
       let ifExists = await ERC721CONTRACT.findOne({
-        address: erc721Address
+        address: erc721Address,
       });
       if (!ifExists) {
         let sc_721 = new ERC721CONTRACT();
         sc_721.address = erc721Address;
         sc_721.name = collectionName;
         let symbol = await getSymbol(erc721Address);
-        sc_721.symbol = symbol || 'Symbol';
+        sc_721.symbol = symbol || "Symbol";
         sc_721.isVerified = true;
         sc_721.isAppropriate = true;
         await sc_721.save();
       }
 
       let categoryExists = await Category.findOne({
-        minterAddress: erc721Address
+        minterAddress: erc721Address,
       });
 
       if (!categoryExists) {
@@ -189,8 +198,8 @@ router.post('/collectiondetails', auth, async (req, res) => {
         await category.save();
       } else {
         return res.json({
-          status: 'failed',
-          data: 'Category minter address already exists!'
+          status: "failed",
+          data: "Category minter address already exists!",
         });
       }
     }
@@ -223,6 +232,8 @@ router.post('/collectiondetails', auth, async (req, res) => {
     let newCollection = await _collection.save();
     if (newCollection) {
       // notify admin about a new app
+
+      Logger.debug("getting to the mailer... ");
       if (!isInternal[0]) {
         applicationMailer.notifyAdminForNewCollectionApplication(); //notify admin
         applicationMailer.notifyInternalCollectionDeployment(
@@ -231,35 +242,35 @@ router.post('/collectiondetails', auth, async (req, res) => {
         ); // notify register
       }
       return res.send({
-        status: 'success',
-        data: newCollection.toJson()
+        status: "success",
+        data: newCollection.toJson(),
       });
     } else
       return res.send({
-        status: 'failed'
+        status: "failed",
       });
   }
 });
 
-router.post('/getMintableCollections', auth, async (req, res) => {
+router.post("/getMintableCollections", auth, async (req, res) => {
   try {
     let address = extractAddress(req, res);
     let internalCollections = await Collection.find({
       isInternal: true,
       isOwnerble: false,
-      isAppropriate: true
+      isAppropriate: true,
     });
     let myCollections = await Collection.find({
       owner: address,
       isInternal: true,
       isOwnerble: true,
-      isAppropriate: true
+      isAppropriate: true,
     });
     let collections = [...internalCollections, ...myCollections];
     let tokenTypeMap = new Map();
     let promise = collections.map(async (collection) => {
       let category = await Category.findOne({
-        minterAddress: toLowerCase(collection.erc721Address)
+        minterAddress: toLowerCase(collection.erc721Address),
       });
 
       if (category) {
@@ -271,52 +282,52 @@ router.post('/getMintableCollections', auth, async (req, res) => {
       collectionName: collection.collectionName,
       erc721Address: collection.erc721Address,
       logoImageHash: collection.logoImageHash,
-      type: tokenTypeMap.get(collection.erc721Address)
+      type: tokenTypeMap.get(collection.erc721Address),
     }));
     return res.json({
-      status: 'success',
-      data: data
+      status: "success",
+      data: data,
     });
   } catch (error) {
     Logger.error(error);
     return res.json({
-      status: 'failed'
+      status: "failed",
     });
   }
 });
 
-router.post('/getReviewApplications', admin_auth, async (req, res) => {
+router.post("/getReviewApplications", admin_auth, async (req, res) => {
   try {
     let applications = await Collection.find({ status: false });
     return res.json({
-      status: 'success',
-      data: applications
+      status: "success",
+      data: applications,
     });
   } catch (error) {
     Logger.error(error);
     return res.json({
-      status: 'failed'
+      status: "failed",
     });
   }
 });
 
 // need to update the smart contract with royalty
 
-router.post('/reviewApplication', admin_auth, async (req, res) => {
+router.post("/reviewApplication", admin_auth, async (req, res) => {
   try {
     let contractAddress = toLowerCase(req.body.contractAddress);
     if (!ethers.utils.isAddress(contractAddress))
       return res.json({
-        status: 'failed',
-        data: 'NFT Contract Address invalid'
+        status: "failed",
+        data: "NFT Contract Address invalid",
       });
     let status = parseInt(req.body.status);
     let collection = await Collection.findOne({
-      erc721Address: contractAddress
+      erc721Address: contractAddress,
     });
     if (!collection)
       return res.json({
-        status: 'failed'
+        status: "failed",
       });
 
     let email = collection.email;
@@ -327,11 +338,11 @@ router.post('/reviewApplication', admin_auth, async (req, res) => {
       // send deny email
       applicationMailer.sendApplicationDenyEmail({
         to: email,
-        subject: 'Collection Registration Failed!',
-        reason: `${reason}`
+        subject: "Collection Registration Failed!",
+        reason: `${reason}`,
       });
       return res.json({
-        status: 'success'
+        status: "success",
       });
     } else if (status == 1) {
       // update smart contract for royalty
@@ -342,31 +353,31 @@ router.post('/reviewApplication', admin_auth, async (req, res) => {
       // validate fee receipient to be a valid erc20 address
       if (!ethers.utils.isAddress(feeRecipient)) {
         // deny -- remove from collection and send email
-        let reason = 'Fee recipient Address Invalid.';
+        let reason = "Fee recipient Address Invalid.";
         await collection.remove();
         // send deny email
         applicationMailer.sendApplicationDenyEmail({
           to: email,
-          subject: 'Collection Registration Failed!',
-          reason: `${reason}`
+          subject: "Collection Registration Failed!",
+          reason: `${reason}`,
         });
         return res.json({
-          status: 'success'
+          status: "success",
         });
       }
       // validate royalty to range in o to 100
       if (royalty > 10000 || royalty < 0) {
         // deny -- remove from collection and send email
-        let reason = 'Royalty should be in range of 0 to 100';
+        let reason = "Royalty should be in range of 0 to 100";
         await collection.remove();
         // send deny email
         applicationMailer.sendApplicationDenyEmail({
           to: email,
-          subject: 'Collection Registration Failed!',
-          reason: `${reason}`
+          subject: "Collection Registration Failed!",
+          reason: `${reason}`,
         });
         return res.json({
-          status: 'success'
+          status: "success",
         });
       }
 
@@ -377,13 +388,13 @@ router.post('/reviewApplication', admin_auth, async (req, res) => {
           creator,
           royalty,
           feeRecipient,
-          { gasLimit: 4000000 }
+          { gasLimit: 3000000 }
         );
       } catch (error) {
-        Logger.debug('error in setting collection royalty');
+        Logger.debug("error in setting collection royalty");
         Logger.error(error);
         return res.json({
-          status: 'failed'
+          status: "failed",
         });
       }
       // approve -- udpate collection and send email
@@ -393,7 +404,7 @@ router.post('/reviewApplication', admin_auth, async (req, res) => {
       try {
         await ERC721CONTRACT.updateOne(
           {
-            address: contractAddress
+            address: contractAddress,
           },
           { isAppropriate: true }
         );
@@ -401,7 +412,7 @@ router.post('/reviewApplication', admin_auth, async (req, res) => {
       try {
         await ERC1155CONTRACT.updateOne(
           {
-            address: contractAddress
+            address: contractAddress,
           },
           { isAppropriate: true }
         );
@@ -409,114 +420,114 @@ router.post('/reviewApplication', admin_auth, async (req, res) => {
       // send email
       applicationMailer.sendApplicationReviewedEmail({
         to: email,
-        subject: 'Collection Registerd Successfully!'
+        subject: "Collection Registerd Successfully!",
       });
       return res.json({
-        status: 'success'
+        status: "success",
       });
     } else {
       return res.json({
-        status: 'failed'
+        status: "failed",
       });
     }
   } catch (error) {
     Logger.error(error);
     return res.json({
-      status: 'failed'
+      status: "failed",
     });
   }
 });
 
-router.post('/searchCollection', auth, async (req, res) => {
+router.post("/searchCollection", auth, async (req, res) => {
   let erc721Address = req.body.erc721Address;
   if (!ethers.utils.isAddress(erc721Address))
     return res.json({
-      status: 'failed',
-      data: 'NFT Contract Address Invalid'
+      status: "failed",
+      data: "NFT Contract Address Invalid",
     });
   erc721Address = toLowerCase(erc721Address);
   let collection = await Collection.findOne({
     erc721Address: erc721Address,
-    isAppropriate: true
+    isAppropriate: true,
   });
   if (collection)
     return res.send({
-      status: 'success',
-      data: collection.toJson()
+      status: "success",
+      data: collection.toJson(),
     });
   else
     return res.send({
-      status: 'failed'
+      status: "failed",
     });
 });
 
-router.get('/fetchAllCollections', auth, async (req, res) => {
+router.get("/fetchAllCollections", auth, async (req, res) => {
   let all = await Collection.find({ isAppropriate: true }).sort({
-    collectionName: 1
+    collectionName: 1,
   });
   return res.json({
-    status: 'success',
-    data: all
+    status: "success",
+    data: all,
   });
 });
 
-router.post('/getCollectionInfo', async (req, res) => {
+router.post("/getCollectionInfo", async (req, res) => {
   let address = toLowerCase(req.body.contractAddress);
   if (!ethers.utils.isAddress(address))
     return res.json({
-      status: 'failed',
-      data: 'NFT Contract Address Invalid'
+      status: "failed",
+      data: "NFT Contract Address Invalid",
     });
   let collection = await Collection.findOne({ erc721Address: address });
   if (collection)
     return res.json({
-      status: 'success',
-      data: { ...minifyCollection(collection), isVerified: true }
+      status: "success",
+      data: { ...minifyCollection(collection), isVerified: true },
     });
   collection = await ERC721CONTRACT.findOne({
-    address: address
+    address: address,
   });
   if (collection)
     return res.json({
-      status: 'success',
-      data: minifyCollection(collection)
+      status: "success",
+      data: minifyCollection(collection),
     });
   collection = await ERC1155CONTRACT.findOne({
-    address: address
+    address: address,
   });
   if (collection)
     return res.json({
-      status: 'success',
-      data: minifyCollection(collection)
+      status: "success",
+      data: minifyCollection(collection),
     });
 });
 
-router.post('/isValidated', auth, async (req, res) => {
+router.post("/isValidated", auth, async (req, res) => {
   try {
     let erc721Address = req.body.erc721Address;
     if (!ethers.utils.isAddress(erc721Address))
       return res.json({
-        status: 'failed',
-        data: 'NFT Contract Address Invalid'
+        status: "failed",
+        data: "NFT Contract Address Invalid",
       });
     erc721Address = toLowerCase(erc721Address);
     let request = `https://api.ftmscan.com/api?module=contract&action=getsourcecode&address=${erc721Address}&apikey=${ftmScanApiKey}`;
     let response = await axios.get(request);
     if (
-      response.status != '1' ||
-      response.result.ABI == 'Contract source code not verified'
+      response.status != "1" ||
+      response.result.ABI == "Contract source code not verified"
     )
       return res.json({
-        status: 'success',
-        isValidated: 'no'
+        status: "success",
+        isValidated: "no",
       });
     return res.json({
-      status: 'success',
-      isValidated: 'yes'
+      status: "success",
+      isValidated: "yes",
     });
   } catch (error) {
     return res.json({
-      status: 'failed'
+      status: "failed",
     });
   }
 });
@@ -560,7 +571,7 @@ const minifyCollection = (collection) => {
       : {}),
     isInternal: collection.isInternal,
     isOwnerble: collection.isOwnerble,
-    isAppropriate: collection.isAppropriate
+    isAppropriate: collection.isAppropriate,
   };
 };
 
