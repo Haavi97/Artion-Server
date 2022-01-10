@@ -530,7 +530,7 @@ const sendEmail = (msg) => {
     if (error) {
       console.log("Failed to send EMAIL: ", error);
     } else {
-      console.log("That's was it!");
+      console.log("That's it!");
     }
   });
 };

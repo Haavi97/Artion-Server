@@ -1,6 +1,6 @@
 const SendGridTemplates = {
-  nftitem: "d-e998b732bd0a4c068f93d2a350407c62",
-  bundleitem: "d-1ee82c7a796e49938f60b13b8ea8b2b8",
+  nftitem: "d-b2c9ac445cd544af9c30e9d01eb3c256",
+  bundleitem: "d-b2c9ac445cd544af9c30e9d01eb3c256", // TODO! 
 };
 
 module.exports = SendGridTemplates;

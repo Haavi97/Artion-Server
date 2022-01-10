@@ -104,6 +104,7 @@ const createMessage = async (data) => {
             link,
           });
         } else {
+          console.log('Could not create NFTItem message');
         }
       }
       break;
@@ -118,7 +119,8 @@ const sendEmailMarketplace = async (data) => {
     if (error) {
       console.log(error);
     } else {
-      console.log("That's was it!");
+      console.log("That's it!");
+      // console.log(result);
     }
   });
 };

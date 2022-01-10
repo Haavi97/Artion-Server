@@ -1,13 +1,13 @@
 require("dotenv").config();
 const FantomContacts = {
-  discord: "http://chat.fantom.network/",
-  twitter: "https://twitter.com/FantomFDN",
-  telegram: "https://t.me/fantomfoundation",
-  reddit: "https://reddit.com/r/FantomFoundation",
+  discord: "https://discord.gg/5CuBnZB",
+  twitter: "https://twitter.com/PolisChain",
+  telegram: "https://t.me/PolisPayOfficial",
+  medium: "https://polischain.medium.com/",
   artionUnsubscribe: `https://${
     process.env.RUNTIME ? "testnet." : ""
   }artion.io/settings/notification`,
-  email: "support.artion@fantom.foundation",
+  email: "haavi@tatarikeskus.ee",
 };
 
 module.exports = FantomContacts;

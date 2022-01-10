@@ -82,7 +82,7 @@ const sendEmail = (data) => {
     if (error) {
       console.log(error);
     } else {
-      console.log("That's was it!");
+      console.log("That's it!");
     }
   });
 };
